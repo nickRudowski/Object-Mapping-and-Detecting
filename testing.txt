@@ -1,10 +1,1 @@
-S10_front.jpg: O3.jpg, O6.jpg, O8.jpg
-S1_front.jpg: O1.jpg, O6.jpg
-S2_front.jpg: O6.jpg
-S3_front.jpg: None
-S4_front.jpg: None
-S5_front.jpg: None
-S6_front.jpg: None
-S7_front.jpg: None
-S8_front.jpg: O8.jpg
-S9_front.jpg: O6.jpg, O8.jpg
+
