@@ -1,6 +1,1 @@
-Sample results:
 
-Running S1_left: Detected Car(O1)
-...
-Running S4_right: Detected Car(O1), Book(O4), Soccer Ball(O5)
-... 
