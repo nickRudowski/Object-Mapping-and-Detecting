@@ -1,67 +1,146 @@
 import cv2
 import numpy as np
 
-def detect_and_draw_bounding_boxes(object_images, scene_image_path, output_path):
-    scene_image = cv2.imread(scene_image_path)
-    scene_gray = cv2.cvtColor(scene_image, cv2.COLOR_BGR2GRAY)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    scene_gray = clahe.apply(scene_gray)
-    scene_gray = cv2.GaussianBlur(scene_gray, (5, 5), 0)
 
+def resize_object(obj, max_height):
+    h, w = obj.shape[:2]
+    
+    if h > max_height:
+
+        scale_factor = max_height / h
+        obj = cv2.resize(obj, (int(w * scale_factor), int(h * scale_factor)), interpolation=cv2.INTER_AREA)
+    
+    return obj
+
+
+def extract_non_transparent_keypoints(obj):
+    bgr, alpha = obj[:, :, :3], obj[:, :, 3]
+    mask = cv2.threshold(alpha, 1, 255, cv2.THRESH_BINARY)[1]  
+    obj_gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+
+    obj_gray_masked = cv2.bitwise_and(obj_gray, obj_gray, mask=mask)  
+
+    return obj_gray_masked, mask
+
+
+def compute_tight_bounding_box(points):
+    x_min, y_min = np.min(points[:, 0]), np.min(points[:, 1])
+    x_max, y_max = np.max(points[:, 0]), np.max(points[:, 1])
+    return (int(x_min), int(y_min)), (int(x_max), int(y_max))
+
+
+def detect_objects(object_images, scene_image_path, output_path, colors):
+    
+    scene = cv2.imread(scene_image_path)
+    if scene is None:
+        print("Error: no scene image.")
+        return
+
+    
+    scene_height, scene_width = scene.shape[:2]
+    scene_gray = cv2.cvtColor(scene, cv2.COLOR_BGR2GRAY)
+
+    
+    output_image = scene.copy()
+
+    
     sift = cv2.SIFT_create()
 
+    
     scene_keypoints, scene_descriptors = sift.detectAndCompute(scene_gray, None)
-    index_params = dict(algorithm=1, trees=5)
-    search_params = dict(checks=50)
-    flann = cv2.FlannBasedMatcher(index_params, search_params)
 
-    for idx, obj_image_path in enumerate(object_images):
-        obj_image = cv2.imread(obj_image_path)
-        obj_gray = cv2.cvtColor(obj_image, cv2.COLOR_BGR2GRAY)
-        obj_gray = cv2.GaussianBlur(obj_gray, (5, 5), 0)
-
-
-        obj_keypoints, obj_descriptors = sift.detectAndCompute(obj_gray, None)
-        matches = flann.knnMatch(obj_descriptors, scene_descriptors, k=2)
+    
+    for obj_idx, obj_path in enumerate(object_images):
+        
+        obj = cv2.imread(obj_path, cv2.IMREAD_UNCHANGED)
+        if obj is None:
+            print(f"Error: no object image: {obj_path}")
+            continue
 
         
+        obj = resize_object(obj, scene_height)
 
-        good_matches = [m for m, n in matches if m.distance < 0.6 * n.distance]
+        
+        obj_gray, mask = extract_non_transparent_keypoints(obj)
 
-        if len(good_matches) > 10:
+        
+        obj_keypoints, obj_descriptors = sift.detectAndCompute(obj_gray, mask)
+
+        
+        bf = cv2.BFMatcher(cv2.NORM_L2)
+        matches = bf.knnMatch(obj_descriptors, scene_descriptors, k=2)
+        good_matches = [m for m, n in matches if m.distance < 0.75 * n.distance]
+
+        if len(good_matches) >= 10:  
+            
             obj_pts = np.float32([obj_keypoints[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
             scene_pts = np.float32([scene_keypoints[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
 
-            matrix, mask = cv2.findHomography(obj_pts, scene_pts, cv2.RANSAC, 2.0)
+            
+            M, mask = cv2.findHomography(obj_pts, scene_pts, cv2.RANSAC, 5.0)
 
-            if matrix is not None:
+            if M is not None:
+                
+                inliers = mask.ravel().astype(bool)
+                scene_inlier_pts = scene_pts[inliers].reshape(-1, 2)
+
+                
+                top_left, bottom_right = compute_tight_bounding_box(scene_inlier_pts)
+
+                
+                cv2.rectangle(output_image, top_left, bottom_right, colors[obj_idx], 4)
+
+                
+                label = f"O{obj_idx + 1}"
+                cv2.putText(output_image, label, (top_left[0], top_left[1] - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 3, colors[obj_idx], 6)
+            else:
+                print(f"Failed to ccalculaate homography for {obj_path}.")
+        else:
+            res = cv2.matchTemplate(scene_gray, obj_gray, cv2.TM_CCOEFF_NORMED, mask=mask)
+            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
+
+            if max_val > 0.5:  
+                top_left = max_loc
                 h, w = obj_gray.shape
-                corners = np.float32([[0, 0], [w, 0], [w, h], [0, h]]).reshape(-1, 1, 2)
-                projected_corners = cv2.perspectiveTransform(corners, matrix)
+                bottom_right = (top_left[0] + w, top_left[1] + h)
+                cv2.rectangle(output_image, top_left, bottom_right, colors[obj_idx], 5)
+                label = f"O{obj_idx + 1}"
+                cv2.putText(output_image, label, (top_left[0], top_left[1] - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 3, colors[obj_idx], 6)
 
-                label = f"Object {idx + 1}"
-                cv2.polylines(scene_image, [np.int32(projected_corners)], True, (0, 255, 0), 3)
-                x, y = np.int32(projected_corners[0][0])
-                cv2.putText(scene_image, label, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 4, (255, 0, 0), 5)
-
-    cv2.imwrite(output_path, scene_image)
-    scene_image = cv2.resize(scene_image, (800, 600))
-    cv2.imshow("Detected Objects", scene_image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    cv2.imwrite(output_path, output_image)
+    print(f"Output saved to {output_path}")
 
 
-# Example usage
 if __name__ == "__main__":
+    object_images = [
+        "Objects/O1.png",
+        "Objects/O2.png",
+        "Objects/O3.png",
+        "Objects/O4.png",
+        "Objects/O5.png",
+        "Objects/O6.png"
+    ]
 
-    # Paths to object images
-    object_images = ["Dataset/Objects/O1.jpg", "Dataset/Objects/O2.jpg", "Dataset/Objects/O3.jpg", "Dataset/Objects/O4.jpg", "Dataset/Objects/O5.jpg"]
+    scene_image_path = "Dataset/Scenes/S6_front.jpg"
 
-    # Path to the scene image
-    scene_image_path = "Dataset/Scenes/S5_front.jpg"
+    output_path = "Detected/scene_detect.png"
+    
+    colors = (
+        (0, 0, 255),
+        (0, 127, 255),
+        (0, 255, 255),
+        (0, 255, 0),
+        (255, 0, 0),
+        (255, 0, 255)
+    )
 
-    # Path to save the output image
-    output_path = "output_with_boxes.jpg"
+    detect_objects(object_images, scene_image_path, output_path, colors)
 
-    # Run the detection and drawing function
-    detect_and_draw_bounding_boxes(object_images, scene_image_path, output_path)
+    # mass produce    
+    # for idx, obj in enumerate(object_images):
+    #     print(f"Detecting for scene {idx + 1}")
+    #     scene_image_path = f"Scenes/S{idx + 1}_front.jpg"
+    #     output_path = f"front_{idx + 1}.png"
+    #     detect_objects(object_images[:(idx + 1)], scene_image_path, output_path, colors)
