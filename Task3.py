@@ -19,7 +19,7 @@ def stich_images(images):
 
 def main():
     # Get file names
-    image_files = [f for f in os.listdir(folder) if not f.endswith("3.jpg") and not f.endswith("9.jpg")]
+    image_files = [f for f in os.listdir(folder)]
     images = []
 
     # Read each file
