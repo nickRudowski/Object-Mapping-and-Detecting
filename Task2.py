@@ -29,7 +29,7 @@ def compute_tight_bounding_box(points):
     return (int(x_min), int(y_min)), (int(x_max), int(y_max))
 
 
-def detect_objects(object_images, scene_image_path, output_path, colors):
+def detect_objects(object_images, scene_image_path, output_path, colors, obj_labels):
     
     scene = cv2.imread(scene_image_path)
     if scene is None:
@@ -91,7 +91,7 @@ def detect_objects(object_images, scene_image_path, output_path, colors):
                 cv2.rectangle(output_image, top_left, bottom_right, colors[obj_idx], 4)
 
                 
-                label = f"O{obj_idx + 1}"
+                label = f"{obj_labels[obj_idx]}"
                 cv2.putText(output_image, label, (top_left[0], top_left[1] - 10),
                             cv2.FONT_HERSHEY_SIMPLEX, 3, colors[obj_idx], 6)
             else:
@@ -105,7 +105,7 @@ def detect_objects(object_images, scene_image_path, output_path, colors):
                 h, w = obj_gray.shape
                 bottom_right = (top_left[0] + w, top_left[1] + h)
                 cv2.rectangle(output_image, top_left, bottom_right, colors[obj_idx], 5)
-                label = f"O{obj_idx + 1}"
+                label = f"{obj_labels[obj_idx]}"
                 cv2.putText(output_image, label, (top_left[0], top_left[1] - 10),
                             cv2.FONT_HERSHEY_SIMPLEX, 3, colors[obj_idx], 6)
 
@@ -120,27 +120,58 @@ if __name__ == "__main__":
         "Objects/O3.png",
         "Objects/O4.png",
         "Objects/O5.png",
-        "Objects/O6.png"
+        "Objects/O6.png",
+        "Objects/O7.png",
+        "Objects/O8.png",
+        "Objects/O9.png",
+        "Objects/O10.png"
+    ]
+    object_labels = [
+        "Water Dispenser",
+        "Kettle",
+        "Ziploc",
+        "Tea pot",
+        "Lunch box",
+        "Flour",
+        "Pan",
+        "Box",
+        "Tissues",
+        "Hat"
     ]
 
-    scene_image_path = "Dataset/Scenes/S6_front.jpg"
+    scene_image_path = "output_panorama.jpg"
 
-    output_path = "Detected/scene_detect.png"
-    
+    output_path = "Detected/panorama_detect.png"
+
     colors = (
         (0, 0, 255),
         (0, 127, 255),
         (0, 255, 255),
         (0, 255, 0),
         (255, 0, 0),
-        (255, 0, 255)
+        (255, 0, 255),
+        (127, 0, 255),
+        (255, 255, 0),
+        (255, 127, 0),
+        (50, 205, 50)
     )
 
-    detect_objects(object_images, scene_image_path, output_path, colors)
+
+    detect_objects(object_images, scene_image_path, output_path, colors, object_labels)
 
     # mass produce    
-    # for idx, obj in enumerate(object_images):
-    #     print(f"Detecting for scene {idx + 1}")
-    #     scene_image_path = f"Scenes/S{idx + 1}_front.jpg"
-    #     output_path = f"front_{idx + 1}.png"
-    #     detect_objects(object_images[:(idx + 1)], scene_image_path, output_path, colors)
+    for idx, obj in enumerate(object_images):
+         print(f"Detecting for scene {idx + 1}")
+         scene_image_path = f"Scenes/S{idx + 1}_front.jpg"
+         output_path = f"Detected/front_{idx + 1}.png"
+         detect_objects(object_images[:(idx + 1)], scene_image_path, output_path, colors, object_labels)
+
+         print(f"Detecting for scene {idx + 1}")
+         scene_image_path = f"Scenes/S{idx + 1}_left.jpg"
+         output_path = f"Detected/left_{idx + 1}.png"
+         detect_objects(object_images[:(idx + 1)], scene_image_path, output_path, colors, object_labels)
+
+         print(f"Detecting for scene {idx + 1}")
+         scene_image_path = f"Scenes/S{idx + 1}_right.jpg"
+         output_path = f"Detected/right_{idx + 1}.png"
+         detect_objects(object_images[:(idx + 1)], scene_image_path, output_path, colors, object_labels)
