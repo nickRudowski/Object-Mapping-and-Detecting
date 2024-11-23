@@ -15,3 +15,8 @@ This project involves creating a professional image dataset and applying foundat
 1. **Task 1**: Identify objects in each scene and evaluate the system’s performance.
 2. **Task 2**: Draw bounding boxes around detected objects in scene images.
 3. **Task 3**: Stitch panoramic images and annotate detected objects.
+
+
+![Task 2 - Scene with 3 Objects](Detected/front_3.png)
+
+![Task 3 - Panorama with all 10 Objects](Detected/panorama_detect.png)
