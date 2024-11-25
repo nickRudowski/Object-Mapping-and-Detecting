@@ -37,7 +37,7 @@ def main():
 
 if __name__ == "__main__":
     # Settings
-    folder = "Dataset/Panorama"
-    output = "output_panorama.jpg"
+    folder = "Panorama"
+    output = "Panorama/Panorama.jpg"
 
     main()
