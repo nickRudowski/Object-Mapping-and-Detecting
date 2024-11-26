@@ -1,17 +1,18 @@
-# Drier Code for Task 1
+# Driver Code for Task 1
 import os
 
 import cv2 as cv
 import numpy as np
-from matplotlib import pyplot as plt
 
-# Constants for feature matching and image processing
-MIN_MATCH_COUNT_HIGH = 140  # Minimum matches to detect an object
-MIN_MATCH_COUNT_SUM = 120  # Minimum total matches across views
+# Constants for detection thresholding
+MIN_MATCH_COUNT_SINGLE = 100  # Minimum matches to detect an object in a single view
+MIN_MATCH_COUNT_SUM = 113  # Minimum total matches across views
+ROTATIONAL_VALIDITY_THRESH = 0.5  # Threshold for object rotational validity
+INLIER_RATIO_THRESH = 0.45  # Threshold for homography mask inliers
 RATIO_TEST_THRESHOLD = 0.70  # Lowe's ratio test threshold
-INLIER_RATIO_THRESHOLD = 0.6  # Threshold for homography validiy ratio
 RANSAC_REPROJECTION_THRESHOLD = 5  # Threshold for RANSAC homography inlier detection
 
+# Dictionary to link objects with associated name, descriptors, keypoints and images
 OBJECTS = {
     "O1": ["Soda Machine", [], [], []],
     "O2": ["Moka Pot", [], [], []],
@@ -26,6 +27,7 @@ OBJECTS = {
 }
 
 
+# Image downscaler to decease computational intensiveness
 def resize_image(obj, max_height):
     h, w = obj.shape[:2]
 
@@ -41,6 +43,7 @@ def resize_image(obj, max_height):
     return obj
 
 
+# Extracts keypoints from object images that lie outside of the transparent areas of the png's
 def extract_non_transparent_keypoints(obj):
     bgr, alpha = obj[:, :, :3], obj[:, :, 3]
     mask = cv.threshold(alpha, 1, 255, cv.THRESH_BINARY)[1]
@@ -51,6 +54,7 @@ def extract_non_transparent_keypoints(obj):
     return obj_gray_masked, mask
 
 
+# Gets scene images from folder_path, normalizes them and converts to greyscale
 def load_scene_images(folder_path):
     """
     Load all scene images from a given folder.
@@ -78,7 +82,7 @@ def load_scene_images(folder_path):
             if image is None:
                 raise ValueError(f"Failed to load image: {img_path}")
 
-            # Normalize 
+            # Normalize
             cv.normalize(image, image, 0, 255, cv.NORM_MINMAX)
 
             images.append(image)
@@ -87,15 +91,8 @@ def load_scene_images(folder_path):
     return images, image_names
 
 
+# Gets object images from folder_path, normalizes, coverts to greyscale and then adds corresponding keypoints, descriptors and images to OBJECTS
 def load_obj_images(folder_path, sift):
-    """
-    Load all object images from a given folder to the OBJECTS dictionary.
-    Parameters:
-        folder_path: Path to the folder containing images.
-    Returns:
-        A list of loaded images and their filenames.
-    """
-
     # Check if the folder exists
     if not os.path.exists(folder_path):
         raise FileNotFoundError(f"Folder not found: {folder_path}")
@@ -112,7 +109,7 @@ def load_obj_images(folder_path, sift):
             if image is None:
                 raise ValueError(f"Failed to load image: {img_path}")
 
-            # Normalize 
+            # Normalize
             cv.normalize(image, image, 0, 255, cv.NORM_MINMAX)
 
             name = filename[:-4]
@@ -146,6 +143,7 @@ def match_features(des1, des2, ratio=RATIO_TEST_THRESHOLD):
     return good_matches
 
 
+# Function that computes the homography matrix, mask, and new object corners when projected onto the scene image
 def localize_homography(good_matches, object_image, obj_kps, scene_kps):
     obj = np.empty((len(good_matches), 2), dtype=np.float32)
     scene = np.empty((len(good_matches), 2), dtype=np.float32)
@@ -186,8 +184,21 @@ def decompose_homography(lis):
         return rotation, scale, translation
 
     except np.linalg.LinAlgError:
-        # print("Error: SVD did not converge.")
         return [np.zeros((2, 2)), np.zeros((2, 2)), np.zeros((2, 2))]
+
+
+# Thresholding function that converts summary values to 0-4 score
+def calculate_score(rotation_val, max_matches, sum_matches, max_inlier_ratio):
+    score = 0
+    if rotation_val < ROTATIONAL_VALIDITY_THRESH:
+        score += 1
+    if max_matches > MIN_MATCH_COUNT_SINGLE:
+        score += 1
+    if sum_matches > MIN_MATCH_COUNT_SUM:
+        score += 1
+    if max_inlier_ratio > INLIER_RATIO_THRESH:
+        score += 1
+    return score
 
 
 def process_scene(
@@ -198,13 +209,13 @@ def process_scene(
     sift,
 ):
     """
-    Process a scene to detect objects by matching features across views.
+    Main function to process a scene and detect objects by matching features and thresholding across views.
     Parameters:
         scene_left: Left view of the scene.
         scene_front: Front view of the scene.
         scene_right: Right view of the scene.
-        object_names: Names of objects.
-        scene_name: Name of the scene.
+        scene_file: File name of the scene.
+        sift: Sift detector
     Returns:
         List of detected objects.
     """
@@ -231,7 +242,7 @@ def process_scene(
         good_matches_front = match_features(obj_desc, scene_desc_front)
         good_matches_right = match_features(obj_desc, scene_desc_right)
 
-        # Compute homography masks for thresholding and object localization
+        # Compute homography masks for thresholding and object localization if there are sufficient keypoints to do so
         if len(good_matches_left) > 30:
             mask_left, _, Hleft = localize_homography(
                 good_matches_left, obj_image, obj_kps, scene_kps_left
@@ -267,7 +278,7 @@ def process_scene(
         inlier_ratio_front = np.sum(mask_front) / len(mask_front)
         inlier_ratio_right = np.sum(mask_right) / len(mask_right)
 
-        # Compute summary values
+        # Compute summary thresholding values
         max_matches = max(
             len(good_matches_left), len(good_matches_front), len(good_matches_right)
         )
@@ -277,11 +288,6 @@ def process_scene(
         max_inlier_ratio = max(
             inlier_ratio_left, inlier_ratio_front, inlier_ratio_right
         )
-        # Compute avg of distances among top 50 matches
-        sorted_matches = sorted(
-            (good_matches_left + good_matches_front + good_matches_right),
-            key=lambda match: match.distance,
-        )[:10]
 
         rotation_left = np.zeros((2, 2))
         rotation_front = np.zeros((2, 2))
@@ -303,6 +309,7 @@ def process_scene(
         )
         rotation_validity = 10
 
+        # Find the consistency in rotational transformations between scenes
         if rotation_consistency != (np.float64(0.0), np.float64(0.0), np.float64(0.0)):
             pairwise_differences = np.abs(
                 np.array(rotation_consistency)[:, None] - np.array(rotation_consistency)
@@ -312,18 +319,7 @@ def process_scene(
                 pairwise_differences[np.nonzero(pairwise_differences)]
             )
 
-        def calculate_score(rotation_val, max_matches, sum_matches, max_inlier_ratio):
-            score = 0
-            if rotation_val < 0.5:
-                score += 1
-            if max_matches > 100:
-                score += 1
-            if sum_matches > 113:
-                score += 1
-            if max_inlier_ratio > 0.45:
-                score += 1
-            return score
-
+        # Calculate and threshold based on score
         score = calculate_score(
             round(rotation_validity, 2),
             max_matches,
@@ -373,7 +369,7 @@ if __name__ == "__main__":
 
     # Load object and scene images
     scene_images, scene_names = load_scene_images(scenes_folder)
-    
+
     # Process scenes and detect objects
     results = []
     for i in range(0, len(scene_images), 3):
