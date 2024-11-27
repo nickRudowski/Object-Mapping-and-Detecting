@@ -1,4 +1,4 @@
-# Driver code for the 
+# Driver code for the Project
 import subprocess
 
 def run_task(script_name, *args):
@@ -19,18 +19,20 @@ def run_task(script_name, *args):
 def main():
     #Execeute Task 1
     print("Starting Task 1:")
-    run_task("Task1.py")
+    run_task("Code\\Task1.py")
     print("Task 1 completed.")
-
-    #Execute Task 2
-    print("Starting Task 2:")
-    run_task("Task2.py")
-    print("Task 2 completed.")
 
     #Execeute Task 3
     print("Starting Task 3:")
-    run_task("Task3.py")
+    run_task("Code\\Task3.py")
     print("Task 3 completed.")
+
+    #Execute Task 2
+    print("Starting Task 2:")
+    run_task("Code\\Task2.py")
+    print("Task 2 completed.")
+
+
 
 
 if __name__ == "__main__":

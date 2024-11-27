@@ -125,8 +125,9 @@ def detect_objects(object_images, scene_image_path, output_path, colors, obj_lab
 
 
 if __name__ == "__main__":
-    scene_image_path = "output_panorama.jpg"
-    output_path = "Panorama/panorama_detect.png"
+    
+    panorama_image_path = "Panorama/Panorama.jpg"
+    output_path = "Panorama/Panorama_bb.png"
     
     object_images = [
         "Objects/O1.png",
@@ -168,13 +169,13 @@ if __name__ == "__main__":
         (50, 205, 50),
     )
 
-    detect_objects(object_images, scene_image_path, output_path, colors, object_labels)
+    detect_objects(object_images, panorama_image_path, output_path, colors, object_labels)
 
     # mass produce
-    for idx, obj in enumerate(object_images):
+    for idx, obj in enumerate(object_images):       
         print(f"Detecting for scene {idx + 1}")
         scene_image_path = f"Scenes/S{idx + 1}_front.jpg"
-        output_path = f"Detected/front_{idx + 1}.png"
+        output_path = f"Detected/S{idx + 1}_front_bb.png"
         detect_objects(
             object_images[: (idx + 1)],
             scene_image_path,
@@ -185,7 +186,7 @@ if __name__ == "__main__":
 
         print(f"Detecting for scene {idx + 1}")
         scene_image_path = f"Scenes/S{idx + 1}_left.jpg"
-        output_path = f"Detected/left_{idx + 1}.png"
+        output_path = f"Detected/S{idx + 1}_left_bb.png"
         detect_objects(
             object_images[: (idx + 1)],
             scene_image_path,
@@ -196,7 +197,7 @@ if __name__ == "__main__":
 
         print(f"Detecting for scene {idx + 1}")
         scene_image_path = f"Scenes/S{idx + 1}_right.jpg"
-        output_path = f"Detected/right_{idx + 1}.png"
+        output_path = f"Detected/S{idx + 1}_right_bb.png"
         detect_objects(
             object_images[: (idx + 1)],
             scene_image_path,
